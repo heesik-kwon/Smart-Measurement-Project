@@ -45,11 +45,12 @@ Verilog로 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, 
 
 ---
 
-# 🧩 시스템 블록 다이어그램 (System Block Diagram)
+# 📦 시스템 블록 다이어그램 (System Block Diagram)
 
 > 시스템의 전체 동작 흐름을 나타낸 블록 다이어그램으로, 입력 신호부터 제어 및 출력까지의 구조를 모듈 단위로 표현하였습니다.
 
-<img src="https://github.com/user-attachments/assets/7c95914c-8028-47a9-bafc-100f97f3f380" width="600"/>
+<img width="1356" height="678" alt="image" src="https://github.com/user-attachments/assets/145faffa-1bf9-4a39-aa4e-e806bd33d738" />
+
 
 ---
 
@@ -58,7 +59,8 @@ Verilog로 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, 
 > Vivado를 통해 생성한 Top-Level RTL Schematic입니다.   
 각 하드웨어 모듈 간의 실제 연결 관계를 기반으로 회로 구조를 시각화하여, 시스템의 데이터 흐름과 제어 경로를 명확하게 확인할 수 있습니다.
 
-<img src="https://github.com/user-attachments/assets/eb8632bb-1630-4219-835c-05fe5ffe4312" width="800"/>
+<img width="1826" height="774" alt="image" src="https://github.com/user-attachments/assets/f6b89604-35e3-41d3-b827-afd219e8cefe" />
+
 
 ---
 
@@ -67,11 +69,12 @@ Verilog로 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, 
 > Vivado에서 구성한 초음파 거리 측정 시스템의 RTL Schematic입니다.   
 버튼 입력으로 HC-SR04 센서를 트리거하고, 측정된 거리를 FND에 표시하며 UART를 통해 decimal 형식으로 송신합니다.
 
-<img src="https://github.com/user-attachments/assets/05de31f7-171f-4850-987a-452831baa44f" width="800"/>
+<img width="1818" height="538" alt="image" src="https://github.com/user-attachments/assets/ebc25f16-0cfb-4d7f-bbad-770c9a74cae6" />
+
 
 ---
 
-# 🧩 Basys3 보드 LED 및 SW 기능 정리
+# 🚥 Basys3 보드 LED 및 SW 기능 정리
 
 > 프로젝트에서 사용된 **Basys3 FPGA 보드의 LED와 SWITCH 역할**을 정리한 표입니다.  
 LED는 실시간 상태 출력 용도로 사용되며, SW는 모드 전환 및 기능 제어에 활용됩니다.
@@ -176,7 +179,7 @@ LED는 실시간 상태 출력 용도로 사용되며, SW는 모드 전환 및 �
   - `echo` 유지 시간 = 766.240μs − 534.240μs = **232μs**  
   - 계산된 거리: 232 / 58 = **4cm** → `dist = 0x004`
 
-### ✅ 검증 결과 요약
+### ✅ 검증 결과
 
 - 버튼 입력 → 거리 출력까지 모든 플로우가 정상적으로 시뮬레이션됨
 - `echo` 신호의 지속 시간에 따라 정확한 거리(`4cm`)가 산출됨
@@ -202,7 +205,7 @@ LED는 실시간 상태 출력 용도로 사용되며, SW는 모드 전환 및 �
 | 약 3,000,000+    | `tx_done ↑`                  | 1문자 전송 완료 → 다음 문자 전송 준비                         |
 | 이후 반복        | `push_tx`, `tx_busy` 반복    | 다음 문자를 위한 UART 전송 루틴 반복 수행                    |
 
-### ✅ 검증 결과 요약
+### ✅ 검증 결과
 
 - 거리 측정 완료(`done`) 신호 발생 후, UART 전송 요청(`push_tx`)이 트리거됨
 - `tx_busy`가 1이 되며 UART 모듈이 바이트 단위 송신을 수행
@@ -230,7 +233,15 @@ DHT11의 통신 시퀀스를 시간 흐름에 따라 단계별로 나타낸 다�
 
 ---
 
-# 🔄 DHT11 FSM 상태 전이도
+# 🧩 DHT11 RTL Schematic (Vivado)
+
+> DHT11 센서로부터 수신한 온습도 데이터에 대해 UART 전송(UART_CTRL_sensor) 및 FND 표시(fnd_controller_dht11)를 동시에 수행하는 센서-송신 통합 RTL Schematic입니다.
+
+<img width="1785" height="709" alt="image" src="https://github.com/user-attachments/assets/e09087e0-8239-412f-b75c-aeb1d5874dae" />
+
+---
+
+# ⏬ DHT11 FSM 상태 전이도
 
 > DHT11 센서 통신을 위한 Finite State Machine (FSM) 상태 전이도입니다.  
 FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signal → 응답 수신 → 데이터 수신 과정을 수행합니다.
@@ -382,7 +393,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 - `data_cnt_reg`가 0이 되면 40비트 수신이 완료됨
 - 이후 FSM은 내부적으로 **Checksum 검사**를 수행
-- 검사 통과 시 `dht11_valid = 1`이 출력되며 FSM은 **STOP 상태(7)**로 전이
+- 검사 통과 시 `dht11_valid = 1`이 출력되며 FSM은 STOP 상태(7)로 전이
 - 해당 시뮬레이션을 통해 전체 수신 과정이 정상적으로 종료되는 것을 확인할 수 있음
 
 ---
@@ -427,7 +438,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 <img width="2269" height="681" alt="image" src="https://github.com/user-attachments/assets/a8aeae06-91fe-4c93-bec2-a445d3330174" />
 
-### 🧾 주요 관찰 포인트
+### 🧾 주요 포인트
 
 - FSM 상태가 `c_state = 5 (DATA_SYNC)`일 때 센서 응답 신호를 감지하고,
   - `c_state = 6 (DATA_DETECT)`에서 HIGH 유지 시간 측정을 통해 bit값 결정
@@ -437,11 +448,10 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 ### 🧪 데이터 저장 예시
 
-- 예시:  
-  `data_reg = 1010000000000000000000000000000000000000`  
+- 예시: `data_reg = 1010000000000000000000000000000000000000`  
   → 상위 비트부터 하나씩 shift-in 되며 저장 중임을 의미
 
-### ✅ 검증 결과 요약
+### ✅ 검증 결과
 
 - `data_reg[39:0]`는 FSM 상태 `STATE 5 ↔ 6` 반복 중  
   `w_tick` 상승 에지를 기준으로 정확히 1bit씩 채워짐
@@ -454,7 +464,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 > UART를 통해 명령어를 전송하고, 이에 따른 초음파 거리 센서 및 온습도 센서의 결과를 `ComPortMaster`에서 확인한 예시입니다.
 
-### ✅ 초음파 거리 센서 (`SR\n` 명령)
+### 📏 초음파 거리 센서 (`SR\n` 명령)
 
 - **명령어 전송**: `SR\n`
 - **기능 설명**: 초음파 센서(SR04)를 트리거하여 거리(cm) 측정
