@@ -248,6 +248,8 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 <img src="https://github.com/user-attachments/assets/03a07d73-6a46-4716-aeba-7ee6d14a6fb6" width="750"/>
 
+---
+
 # 📈 DHT11 + UART 검증 및 시뮬레이션
 
 > `TOP_DHT11` 모듈을 기반으로 DHT11 온습도 센서 FSM이 정상적으로 시작되고 상태가 전이되는지 검증하였습니다.  
@@ -440,11 +442,9 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 ### 🧾 주요 포인트
 
-- FSM 상태가 `c_state = 5 (DATA_SYNC)`일 때 센서 응답 신호를 감지하고,
-  - `c_state = 6 (DATA_DETECT)`에서 HIGH 유지 시간 측정을 통해 bit값 결정
+- FSM 상태가 `c_state = 5 (DATA_SYNC)`일 때 센서 응답 신호를 감지하고, `c_state = 6 (DATA_DETECT)`에서 HIGH 유지 시간 측정을 통해 bit값 결정
 - `w_tick`이 발생할 때마다 1bit씩 `data_reg[39:0]`에 **좌측으로 shift-in**되어 저장됨
-- 파형 상 `data_reg` 값이 점차 `1010...`으로 채워지는 과정을 통해  
-  센서로부터의 **정상적인 비트 수신이 진행 중임을 확인 가능**
+- 파형 상 `data_reg` 값이 점차 `1010...`으로 채워지는 과정을 통해 센서로부터의 **정상적인 비트 수신이 진행 중임을 확인 가능**
 
 ### 🧪 데이터 저장 예시
 
@@ -453,8 +453,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 ### ✅ 검증 결과
 
-- `data_reg[39:0]`는 FSM 상태 `STATE 5 ↔ 6` 반복 중  
-  `w_tick` 상승 에지를 기준으로 정확히 1bit씩 채워짐
+- `data_reg[39:0]`는 FSM 상태 `STATE 5 ↔ 6` 반복 중 `w_tick` 상승 에지를 기준으로 정확히 1bit씩 채워짐
 - 이를 통해 FSM이 **정상적으로 40bit 수신 루틴을 수행**하고 있음을 입증
 - 최종적으로 `data_cnt_reg == 0` 도달 시 → FSM은 **Checksum 검사 단계 (STATE 6 → 7)** 로 전이
 
