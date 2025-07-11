@@ -1,5 +1,6 @@
 # 💻 Smart Measurement System
-> 멀티 센서 기반의 스마트 계측 시스템 프로젝트입니다. Verilog로 구현된 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, FIFO & UART를 통한 데이터 통신 기능을 포함합니다.
+> 멀티 센서 기반의 스마트 계측 시스템 프로젝트입니다.     
+Verilog로 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, FIFO & UART 기반 데이터 통신 기능을 직접 설계하고 검증하였습니다.
 
 ---
 
@@ -18,7 +19,7 @@
 
 ## 🎯 주요 기능
 
-- ⏱️ **스톱워치 및 디지털 시계 기능**  
+- ⏱️ **스톱워치 및 디지털 시계**  
   - 버튼으로 시간 측정/정지/초기화  
   - 분:초 / 시:분 모드 전환 가능  
   - 쿠쿠 알람 기능 (매 정시마다 `o_cuckoo` 출력)
@@ -57,16 +58,16 @@
 > Vivado를 통해 생성한 Top-Level RTL Schematic입니다.   
 각 하드웨어 모듈 간의 실제 연결 관계를 기반으로 회로 구조를 시각화하여, 시스템의 데이터 흐름과 제어 경로를 명확하게 확인할 수 있습니다.
 
-<img src="https://github.com/user-attachments/assets/eb8632bb-1630-4219-835c-05fe5ffe4312" width="750"/>
+<img src="https://github.com/user-attachments/assets/eb8632bb-1630-4219-835c-05fe5ffe4312" width="800"/>
 
 ---
 
 ## 🧩 HC-SR04 RTL Schematic (Vivado)
 
-> Vivado에서 구성한 초음파 거리 측정 시스템의 회로도입니다.   
+> Vivado에서 구성한 초음파 거리 측정 시스템의 RTL Schematic입니다.   
 버튼 입력으로 HC-SR04 센서를 트리거하고, 측정된 거리를 FND에 표시하며 UART를 통해 decimal 형식으로 송신합니다.
 
-<img src="https://github.com/user-attachments/assets/05de31f7-171f-4850-987a-452831baa44f" width="750"/>
+<img src="https://github.com/user-attachments/assets/05de31f7-171f-4850-987a-452831baa44f" width="800"/>
 
 ---
 
@@ -79,116 +80,11 @@ LED는 실시간 상태 출력 용도로 사용되며, SW는 모드 전환 및 �
 
 ---
 
-## 🔌 HC-SR04 주요 하드웨어 기능 ① - High Level Detector
-
-> 초음파 센서의 `echo` 신호의 High 구간을 감지하여, 거리 측정을 위한 타이밍 제어 신호를 생성하는 모듈입니다.
-
-### 📋 기능 설명
-
-- **`echo`의 상승 에지(0 → 1)** 감지 시:  
-  → `high_level_flag`를 `1`로 설정 → 거리 측정 시작
-
-- **`echo`의 하강 에지(1 → 0)** 감지 시:  
-  → `high_level_flag`를 `0`으로 클리어  
-  → `done`을 `1`로 설정 → 거리 측정 종료
-
-- 클럭마다 `echo`를 레지스터에 저장하여 에지(transition)를 감지함
-
-### 🔧 Verilog 코드
-
-```verilog
-module high_level_detector (
-    input clk,
-    input rst,
-    input echo,
-    output reg high_level_flag,
-    output reg done
-);
-    reg echo_d;
-
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            high_level_flag <= 0;
-            done <= 0;
-            echo_d <= 0;
-        end else begin
-            echo_d <= echo;
-            if (echo && !echo_d) begin
-                high_level_flag <= 1;
-                done <= 0;
-            end
-            else if (!echo && echo_d) begin
-                high_level_flag <= 0;
-                done <= 1;
-            end else begin
-                done <= 0;
-            end
-        end
-    end
-endmodule
-```
-
----
-
-## 🔌 HC-SR04 주요 하드웨어 기능 ② - Distance Calculator
-
-> 초음파 센서의 `echo` 신호가 HIGH인 시간 동안 클럭을 카운트하고, 이를 이용해 거리(cm)를 계산하는 모듈입니다.
-앞선 `high_level_detector` 모듈에서 생성한 `high_level_flag`와 `done` 신호를 입력으로 사용합니다.
-
-### 📋 기능 설명
-
-- **`high_level_flag = 1`**인 동안 → 클럭 주기로 `count` 증가  
-  → 초음파가 되돌아오는 데 걸린 시간 누적
-
-- **`done = 1`** (echo 종료 시점) →  
-  - `distance = count / 58` 계산  
-  - `dist_done = 1`로 거리 계산 완료 신호 출력  
-  - `count` 초기화
-
-※ `58`로 나누는 이유: 초음파 속도 기준으로 시간(μs)을 cm로 환산하기 위해 사용
-
-### 🔧 Verilog 코드
-
-```verilog
-module calculator (
-    input clk,
-    input rst,
-    input high_level_flag,
-    input done,
-    output reg [9:0] distance,
-    output reg dist_done
-);
-    reg [15:0] count;
-
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            count <= 0;
-            distance <= 0;
-            dist_done <= 0;
-        end else begin
-            if (high_level_flag) begin
-                count <= count + 1;
-                dist_done <= 0;
-            end else if (done) begin
-                distance <= count / 58;
-                dist_done <= 1;
-                count <= 0;
-            end else begin
-                dist_done <= 0;
-            end
-        end
-    end
-endmodule
-```
----
-
 ## 🔧  HC-SR04 + UART 검증 및 시뮬레이션 (Verification & Simulation)
 
-각 모듈의 동작을 Testbench를 통해 검증하고, 파형 시뮬레이션을 통해 신호 변화와 타이밍을 확인하였습니다.
+> 각 모듈의 동작을 Testbench를 통해 검증하고, 파형 시뮬레이션을 통해 신호 변화와 타이밍을 확인하였습니다.
 
----
-
-### ✅ Timing Verification of Trigger Pulse
+### 🔄 Timing Verification of Trigger Pulse
 
 > HC-SR04 초음파 센서는 40kHz 주파수로 8사이클의 초음파를 송신하며, 이때 걸리는 시간은 약 **200μs**입니다.
 
@@ -201,14 +97,17 @@ endmodule
 - **시뮬레이션 결과**  
   `trig` 이후 `echo` 출력까지 약 **239μs** 소요 → 정상 범위 내
 
-시뮬레이션 결과에서는 `trig` 신호 발생 후, `echo` 신호가 약 **239μs** 후에 High가 되는 것을 확인할 수 있습니다.  
-이는 센서 데이터시트상의 사양과 유사하며, **정상적으로 트리거 동작이 수행됨을 검증**할 수 있습니다.
+### ✅ 검증 결과 요약
+
+- 시뮬레이션 결과에서는 `trig` 신호 발생 후, `echo` 신호가 약 **239μs** 후에 High가 되는 것을 확인할 수 있습니다.  
+- 이는 센서 데이터시트상의 사양과 유사하며, **정상적으로 트리거 동작이 수행됨을 검증**할 수 있습니다.
 
 ---
 
 ### 🔄 High Level Detecting Verification
 
-> 아래는 `high_level_detector` 모듈의 기능을 검증하기 위한 Testbench 시뮬레이션 결과입니다. 이 모듈은 echo 신호의 high 레벨 구간을 감지하고, 그 구간의 시작과 종료 시점에 각각 high_level_flag와 done 신호를 갱신합니다.
+> 아래는 `high_level_detector` 모듈의 기능을 검증하기 위한 Testbench 시뮬레이션 결과입니다.     
+> 이 모듈은 echo 신호의 high 레벨 구간을 감지하고, 그 구간의 시작과 종료 시점에 각각 high_level_flag와 done 신호를 갱신합니다.
 
 <img src="https://github.com/user-attachments/assets/875b5226-c357-4751-a0d4-f21fae461656" width="850"/>
 
@@ -230,9 +129,9 @@ endmodule
 
 ---
 
-### 📏 Calculator Verification
+### 🔄 Calculator Verification
 
-> HC-SR04 초음파 센서의 `echo` 신호가 high인 구간 동안 클럭을 카운트하여 거리를 계산하는 로직입니다. 아래는 시뮬레이션을 기반으로 한 주요 동작 과정입니다:
+> HC-SR04 초음파 센서의 `echo` 신호가 high인 구간 동안 클럭을 카운트하여 거리를 계산하는 로직입니다.
 
 <img src="https://github.com/user-attachments/assets/78eef7f2-433a-4606-bd5b-e2be364a5822" width="850"/>
 
@@ -248,11 +147,13 @@ endmodule
 3. **거리 계산 예시**
    - 예: `count = 64`일 때 → `distance = 64 / 58 ≒ 1cm`
 
-이 시뮬레이션은 거리 측정 타이밍과 계산 결과가 정확하게 동작하고 있음을 검증합니다.
+### ✅ 검증 결과 요약
+
+- 이 시뮬레이션은 거리 측정 타이밍과 계산 결과가 정확하게 동작하고 있음을 검증합니다.
 
 ---
 
-### ✅ SR04 Controller Verification
+### 🔄 SR04 Controller Verification
 
 > 초음파 거리 측정 모듈의 전체 동작을 검증한 시뮬레이션 결과입니다. `sr04_controller` 모듈은 `tick_gen`, `start_trigger`, `high_level_detector`, `calculator`로 구성되어 있으며, 트리거부터 거리 계산까지의 흐름이 정확히 수행되는지를 확인할 수 있습니다.
 
@@ -274,11 +175,14 @@ endmodule
     - `calculator` 모듈은 count 값을 바탕으로 거리(cm)를 계산하며, `distance` 신호에 결과가 출력됩니다.  
        → 예: `232μs / 58 = 4cm`
 
-`trig`, `echo`, `done`, `distance` 신호들이 순차적으로 정상 동작함을 파형을 통해 확인하였습니다. 계산된 거리 값 또한 정확히 **4cm**로 출력되는 것을 확인할 수 있었고, **SR04 초음파 모듈 제어 및 거리 측정 알고리즘이 정상 작동함을 시뮬레이션으로 입증**하였습니다.
+### ✅ 검증 결과 요약
+
+- `trig`, `echo`, `done`, `distance` 신호들이 순차적으로 정상 동작함을 파형을 통해 확인하였습니다.
+- 계산된 거리 값 또한 정확히 **4cm**로 출력되는 것을 확인할 수 있었고, **SR04 초음파 모듈 제어 및 거리 측정 알고리즘이 정상 작동함을 시뮬레이션으로 입증**하였습니다.
 
 ---
 
-### 📤 UART Transmission Flow Verification
+### 🔄 UART Transmission Flow Verification
 
 > 거리 측정이 완료되면 `"Distance = XXXXcm\r\n"` 포맷으로 UART를 통해 메시지가 전송됩니다. 아래는 전체 UART 송신 흐름 시뮬레이션입니다.
 
@@ -301,6 +205,8 @@ endmodule
 5. **🔁 반복**  
    거리 갱신 시마다 위 과정이 반복되어 UART로 전송됨
 
+### ✅ 검증 결과 요약
+
 #### 송신 문자열 예시
 
 ```
@@ -313,23 +219,9 @@ Distance = 006cm\r\n
 
 ---
 
-### 🧩 전체 동작 구조
-
-```
-[SR04 Controller] → 거리 측정 완료(dist_done)
-         ↓
-[hex_to_ascii] → ASCII 변환(ascii_valid, ascii_3~0)
-         ↓
-[dist_uart_sender] → 전송 메시지 구성(push_tx, tx_din)
-         ↓
-[UART_CTRL] → UART 시리얼 전송(tx, tx_done)
-```
-
----
-
 ## 🌡️ DHT11 온습도 센서 통신 프로토콜
 
-> DHT11 센서는 단일 신호선(Single-Bus)을 사용해 MCU와 데이터를 주고받습니다.
+> DHT11 센서는 단일 신호선(Single-Bus)을 사용해 MCU와 데이터를 주고받습니다.     
 DHT11의 통신 시퀀스를 시간 흐름에 따라 단계별로 나타낸 다이어그램과 각 구간의 신호 상태입니다.
 
 <img src="https://github.com/user-attachments/assets/64bec993-3103-4d77-aaab-ed1c15fbbd64" width="800"/>
@@ -339,7 +231,7 @@ DHT11의 통신 시퀀스를 시간 흐름에 따라 단계별로 나타낸 다�
 
 ## 📦 DHT11 시스템 블록 다이어그램
 
-> Basys3 보드를 기반으로 구성된 **DHT11 온습도 센서 시스템의 블록 다이어그램**입니다.
+> Basys3 보드를 기반으로 구성된 **DHT11 온습도 센서 시스템의 블록 다이어그램**입니다.    
 사용자의 버튼 입력을 받아 DHT11 센서와 통신하며, 측정된 온습도 데이터를 7세그먼트(FND)에 출력하는 구조입니다.
 
 <img src="https://github.com/user-attachments/assets/65c80b03-df40-40d3-805e-bf9e9b3efe83" width="750"/>
@@ -358,7 +250,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 > 본 시뮬레이션은 `TOP_DHT11` 모듈을 기반으로 DHT11 온습도 센서 FSM이 정상적으로 시작되고 상태가 전이되는지를 검증한 것입니다.  
 아래 파형을 통해 FSM의 시작 조건 및 `start` 입력 동작 여부를 확인할 수 있습니다.
 
-### ✅ FSM Start Trigger Verification
+### 🔁 FSM Start Trigger Verification
 
 > 아래는 DHT11 센서 FSM의 `start` 신호가 입력되었을 때, FSM 상태(`c_state`)가 `IDLE(0)`에서 `START(1)`로 전이되는 과정을 확인한 시뮬레이션 결과입니다.
 
@@ -373,7 +265,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
   - `start`가 1로 올라간 이후, FSM은 `c_state = 1` (START 상태)로 전이됨
   - 이는 DHT11 FSM 정의 상 `start` 신호가 트리거 역할을 한다는 점을 시뮬레이션으로 검증한 결과
 
-### 🧠 시뮬레이션 요약
+### ✅ 검증 결과 요약
 
 - `start` 신호가 정상적으로 인식되며 FSM이 IDLE → START로 전이됨
 - FSM이 시작되면 이후 `START → WAIT → SYNC_L → SYNC_H` 순서로 진행되며 DHT11 통신 프로토콜을 따라 동작함
@@ -388,7 +280,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 <img width="2363" height="681" alt="image" src="https://github.com/user-attachments/assets/360a3f82-71fb-4400-8d52-26daadc0fc65" />
 
-#### 🔍 신호 정의
+### 🔍 신호 정의
 
 - `c_state[3:0]` : FSM의 현재 상태  
 - `tick_cnt_reg[10:0]` : 시간 흐름을 나타내는 내부 카운터 (1tick = 10us)  
@@ -396,7 +288,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 ### 🧭 시뮬레이션 동작 흐름
 
-| 단계 | 시간(us) | 상태(c_state) | 설명 |
+| 단계 | 시점 (us) | 상태 전이 | 설명 |
 |------|----------|----------------|------|
 | ①    | 18,980 ~ 19,000 | `1 → 2` | FSM은 START(1) 상태에서 1900 tick 도달 후 WAIT(2) 상태로 전이됨 |
 | ②    | 19,010           | `2 → 3` | 2번 상태(WAIT)에서 **1 tick 후**, SYNC_L(3)로 전이 |
@@ -425,15 +317,6 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 
 <img width="2358" height="681" alt="image" src="https://github.com/user-attachments/assets/ea61d767-6eb5-4924-803e-65ff6fbb6d73" />
 
-
-### 🧭 시뮬레이션 동작 흐름
-
-| 시점 (μs)         | 신호 변화                  | 상태 전이              | 설명                                          |
-|-------------------|----------------------------|-------------------------|-----------------------------------------------|
-| 약 19,130.025     | `dht11_io`: 0 → 1          | `STATE 3 → STATE 4`     | 센서 응답 시작 (LOW → HIGH)                   |
-| 약 19,210.025     | `dht11_io`: 1 → 0          | `STATE 4 → STATE 5`     | 센서 응답 종료 (HIGH → LOW), 다음 전이 준비    |
-
-
 ### 🔍 신호 정의
 
 - `dht11_io_reg`: 센서와 통신 중인 I/O 레지스터
@@ -442,32 +325,11 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
   - 4: 응답 신호 감지 (0→1)
   - 5: 응답 신호 종료 감지 (1→0)
 
-
-### ✅ 검증 결과 요약
-
-- 센서 응답 신호에 따라 FSM이 명확히 상태 전이를 수행함
-- `dht11_io`의 변화를 FSM이 정상적으로 인식하여,  
-  지정된 **STATE 3 → 4 → 5** 흐름으로 동작함을 확인할 수 있음
-
----
-
-### 🔄 Data Bit 수신 FSM Verification (State 5 ↔ State 6 반복)
-
-> 아래 시뮬레이션은 DHT11 FSM의 **DATA_SYNC(5)**와 **DATA_DETECT(6)** 상태가  
-비트 단위로 데이터를 수신하기 위해 **정상적으로 교차 전이(repeating transition)** 되는지를 확인한 결과입니다.
-
-<img width="2266" height="678" alt="image" src="https://github.com/user-attachments/assets/4b8aa924-8161-48ea-b6cf-a1ae891f7d96" />
-
-#### 🔍 신호 정의
-
-- `c_state[3:0]`: FSM의 현재 상태 (5 = DATA_SYNC, 6 = DATA_DETECT)
-- `dht11_io`: 센서의 데이터 라인 입력 신호
-- `dht11_io_reg`: `dht11_io`의 레지스터 버전 (edge 감지용)
-- `w_tick`: 일정 시간 간격으로 생성되는 tick 신호
-
 ### 🧭 시뮬레이션 동작 흐름
 
-| 시점 (μs)         | 상태 변화    | 조건 및 의미                             |
+| 시점 (μs)         | 신호 변화                  | 상태 전이              | 설명                                          |
+|-------------------|----------------------------|-------------------------|-----------------------------------------------|
+| 약 19,130.025     | `dht11_io`: 0 → 1          | `STATE 3 → STATE 4`     | 센서 응답 시작 (LOW → HIGH)명                           |
 |-------------------|--------------|------------------------------------------|
 | 약 19,260.025     | 5 → 6        | `dht11_io == 0`, `w_tick == 1` 만족       |
 | 이후 반복 구간     | 6 → 5 → 6 ... | `dht11_io` 상승 에지 감지 반복            |
@@ -492,7 +354,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 <img width="2267" height="680" alt="image" src="https://github.com/user-attachments/assets/3e00fab4-17e5-44ca-8c77-f7aafc990c01" />
 
 
-#### 🔍 신호 정의
+### 🔍 신호 정의
 
 - `c_state[3:0]`: FSM 현재 상태
 - `data_cnt_reg[5:0]`: 40비트 수신 카운터
@@ -527,7 +389,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 <img width="2271" height="681" alt="image" src="https://github.com/user-attachments/assets/da08b490-35c6-4e70-8538-4d6a0ec22bb3" />
 
 
-### 🧭 시뮬레이션 분석
+### 🧭 시뮬레이션 동작 흐름
 
 | 시점 (μs)         | 신호 변화                  | 상태 전이            | 설명                                            |
 |-------------------|----------------------------|-----------------------|-------------------------------------------------|
@@ -543,14 +405,14 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
   - 0: Idle 상태 (FSM 종료 및 대기)
 
 
-### ✅ 검증 요약
+### ✅ 검증 결과 요약
 
 - `w_tick` 신호가 4회 발생한 뒤, `c_state`가 0으로 복귀하여 FSM이 정상 종료됨을 확인
 - 이는 **DHT11의 40bit 데이터 수신 및 체크섬 판별을 완료한 후의 정상 동작 흐름**을 의미함
 
 ---
 
-### 📥 DHT11 40bit 데이터 수신 흐름 Verification
+### 🔄 DHT11 40bit 데이터 수신 흐름 Verification
 
 > 아래 시뮬레이션 파형은 DHT11 센서로부터 순차적으로 40bit 데이터를 수신하여 `data_reg`에 저장하는 과정을 보여줍니다.
 이 데이터는 습도(8bit), 온도(8bit), 체크섬(8bit)을 포함한 총 5바이트(40bit)입니다.
@@ -570,7 +432,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
   → 상위 비트부터 1bit씩 shift 저장됨을 의미
 
 
-### ✅ 검증 요약
+### ✅ 검증 결과 요약
 
 - `data_reg[39:0]`가 `w_tick`의 상승 에지를 기준으로 1bit씩 채워지는 것을 통해,
   - FSM의 상태 `5번(State 5)`에서 **정상적인 데이터 수신 흐름이 작동**함을 검증
