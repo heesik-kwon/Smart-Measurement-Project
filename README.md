@@ -1,6 +1,6 @@
 # 💻 Smart Measurement System
-> 멀티 센서 기반의 스마트 계측 시스템 프로젝트입니다.     
-Verilog로 stopwatch & watch, HC-SR04 초음파 센서, DHT11 온습도 센서, FIFO & UART 기반 데이터 통신 기능을 직접 설계하고 검증하였습니다.
+> Verilog로 HC-SR04 초음파 센서, DHT11 온습도 센서, UART 통신(FIFO 포함) 제어 로직을 직접 설계하고 검증한 스마트 계측 시스템입니다.     
+stopwatch 및 watch 기능을 함께 구현하였으며, FND와 ComPort Master를 통해 측정 데이터를 출력합니다.
 
 ---
 
