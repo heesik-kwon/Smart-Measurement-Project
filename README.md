@@ -466,6 +466,89 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 - 최종적으로 `data_cnt_reg == 0` 도달 시 → FSM은 **Checksum 검사 단계 (STATE 6 → 7)** 로 전이
 
 ---
+# 📥 UART Command 수신 시스템 설계
+> UART를 통해 특정 명령어(Command)를 수신하고, 수신된 데이터를 처리하여 논리 제어 신호(Ctrl_Data)를 생성하는 구조입니다.
+스톱워치 / 시계 / 센서 제어를 UART 명령으로 수행할 수 있게 해주는 시스템입니다.
+
+<img width="1632" height="603" alt="image" src="https://github.com/user-attachments/assets/67596d5b-5fd9-4611-a427-6789062172b2" />
+
+---
+
+# 📦 CMD_RX 시스템 블록 다이어그램
+
+> UART로부터 명령어를 수신하고, FIFO 버퍼를 거쳐 로직 처리 후 제어 신호를 출력하는 CMD_RX 모듈의 전체 구조입니다.
+
+<img width="1151" height="361" alt="image" src="https://github.com/user-attachments/assets/ef87b057-59ad-44a6-94ca-f0d024789ef6" />
+
+---
+
+# 🧩 CMD_RX 동작 방식
+
+> UART 통신을 통해 전송된 문자열 명령어를 수신하고, 이를 분석하여 제어 신호를 생성하는 구조입니다.      
+수신된 각 문자들은 FIFO 버퍼를 통해 하나씩 저장되며, 마지막에 `\n` 문자가 도달하면 저장된 문자열이 어떤 명령어에 해당하는지 판별합니다.
+
+### 📷 시스템 구조
+
+<img width="1440" height="539" alt="image" src="https://github.com/user-attachments/assets/231dd589-564d-4fc8-96a0-0fecc32ab4cc" />
+
+
+> 📌 RX → FIFO → Buffer → Logic 순서로 데이터 흐름이 이어지며, FIFO가 비어있지 않을 때 데이터를 버퍼에 저장합니다.
+
+### 📦 동작 순서
+
+- **UART RX로부터 8비트 Data 수신**
+- FIFO가 `empty == 0`일 경우, Data를 Buffer에 순차 저장
+- 저장 중 `\n` 문자가 감지되면 명령어 종료 판단
+- Buffer[0] ~ Buffer[n]까지 저장된 문자열을 기준으로 **명령어 분석**
+- 해당 명령어에 맞는 제어 신호(Ctrl_Signal) 생성 및 출력
+
+### 🧠 예시: `"RUN\n"` 명령 수신
+
+| Buffer 인덱스 | 저장 문자 | 상태         |
+|---------------|-----------|--------------|
+| Buffer[0]     | `R`       | RECV 상태    |
+| Buffer[1]     | `U`       | RECV 상태    |
+| Buffer[2]     | `N`       | RECV 상태    |
+| Buffer[3]     | `\n`      | check 상태 → 명령어 판단 시작 |
+
+```text
+판별 결과: "RUN\n" → RUN 신호 발생
+```
+
+---
+
+# 📈 CMD_RX 명령어 시뮬레이션
+
+> UART를 통해 여러 명령어(`LED\r\n`, `R/S\r\n`, `RESET\r\n` 등)가 전송되고, 각 명령어가 수신되어 디코딩 및 제어 신호로 변환되는 과정을 보여줍니다.
+
+<img width="1353" height="377" alt="image" src="https://github.com/user-attachments/assets/316a47bb-be68-46e6-95c9-94b58ed02211" />
+
+### 🔍 Timing Chart 설명
+
+- 각 명령어는 UART RX를 통해 들어오며, ASCII 코드 기준으로 FIFO → Buffer에 저장됩니다.
+- `\n` 문자가 수신되는 시점을 트리거로 하여 Logic이 전체 명령어를 판단하고, 해당되는 **제어 신호(cmd_*)를 High로 출력**합니다.
+- 아래 노란 화살표와 빨간 동그라미는 **명령어 종료 시점(`\n`)**을 나타내며, 이 타이밍에 따라 내부 명령 디코더가 활성화됩니다.
+
+### 🧾 전송된 명령어 목록 (좌 → 우 순서)
+
+| 명령어       | 설명                         |
+|--------------|------------------------------|
+| `LED\r\n`    | 테스트용 LED 제어 명령       |
+| `R/S\r\n`    | 스톱워치 시작 / 정지         |
+| `RESET\r\n`  | 전체 시스템 리셋             |
+| `CLEAR\r\n`  | 스톱워치 시간 초기화         |
+| `SR\r\n`     | 초음파 센서(SR04) 트리거     |
+| `DHT\r\n`    | 온습도 센서(DHT11) 트리거    |
+| `UP\r\n`     | 시계 모드에서 시간 증가      |
+| `DOWN\r\n`   | 시계 모드에서 시간 감소      |
+
+### ✅ 검증 결과
+
+- 각 명령어 수신 종료 시점에 해당되는 **제어 신호가 정확히 1클럭 동안 활성화**됨을 확인
+- `cmd_*` 신호들이 각각의 명령어에 정확히 대응하고 있음
+- FIFO → Buffer → Decoder → Control Signal 흐름이 정상 동작
+
+---
 
 # 📟 CMD_RX UART 명령 수신 시스템 동작 결과
 
@@ -486,6 +569,7 @@ FSM은 총 8개의 상태(IDLE ~ STOP)를 순차적으로 거치며, Start Signa
 - **실행 화면**:
 
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/e17dabb3-5f59-4ee3-9b41-093ac4853076" />
+
 
 ---
 
