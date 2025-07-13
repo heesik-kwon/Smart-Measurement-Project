@@ -61,6 +61,14 @@ stopwatch 및 watch 기능을 함께 구현하였으며, FND와 ComPort Master�
 
 <img width="1826" height="774" alt="image" src="https://github.com/user-attachments/assets/f6b89604-35e3-41d3-b827-afd219e8cefe" />
 
+---
+
+# 📦 HC-SR04 시스템 블록 다이어그램 (System Block Diagram)
+> Basys3 보드를 기반으로 구성된 **HC-SR04 초음파 센서 시스템의 블록 다이어그램**입니다.    
+사용자의 버튼 입력을 받아 HC-SR04 센서와 통신하며, 측정된 거리 데이터를 7세그먼트(FND)에 출력하는 구조입니다.
+
+<img width="1237" height="422" alt="image" src="https://github.com/user-attachments/assets/d95aad1d-f50b-4484-8a45-84e6765d81e0" />
+
 
 ---
 
